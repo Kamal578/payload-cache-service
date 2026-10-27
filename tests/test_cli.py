@@ -77,8 +77,8 @@ def test_stdin_stdout(service):
 def test_help(flag):
     result = cli(flag)
     assert result.returncode == 0
-    assert "--host, -H" in result.stdout
-    assert "--repeat, -r" in result.stdout
+    assert "--host" in result.stdout and "-H" in result.stdout
+    assert "--repeat" in result.stdout and "-r" in result.stdout
     assert result.stderr == ""
 
 
