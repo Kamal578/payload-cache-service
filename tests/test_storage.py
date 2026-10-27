@@ -138,3 +138,99 @@ def test_independent_stores_share_write_reservation(tmp_path: Path):
     finally:
         for db in stores:
             db.close()
+
+
+def _process_create(database, call_log, barrier, results, unique):
+    import time
+
+    def transform(value):
+        with open(call_log, "a", encoding="utf-8") as stream:
+            stream.write(value + "\n")
+        # Simulate an in-flight external call so competing misses overlap.
+        time.sleep(0.02)
+        return value.upper()
+
+    db = PayloadStore(Path(database), transform)
+    try:
+        barrier.wait(timeout=10)
+        identifier = db.create(
+            PayloadInput(list_1=["shared", unique], list_2=["shared", unique])
+        )
+        results.put(identifier)
+    finally:
+        db.close()
+
+
+def test_separate_processes_do_not_duplicate_transformer_calls(tmp_path):
+    import multiprocessing
+
+    database = tmp_path / "cache.db"
+    initializer = PayloadStore(database)
+    initializer.initialize()
+    initializer.close()
+    call_log = tmp_path / "calls.txt"
+    context = multiprocessing.get_context("spawn")
+    barrier = context.Barrier(3)
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_process_create,
+            args=(str(database), str(call_log), barrier, results, unique),
+        )
+        for unique in ("left", "right")
+    ]
+    try:
+        for process in processes:
+            process.start()
+        barrier.wait(timeout=10)
+        identifiers = [results.get(timeout=15) for _ in processes]
+        for process in processes:
+            process.join(timeout=10)
+            assert process.exitcode == 0
+        assert len(set(identifiers)) == 2
+        assert Counter(call_log.read_text(encoding="utf-8").splitlines()) == {
+            "shared": 1,
+            "left": 1,
+            "right": 1,
+        }
+    finally:
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+            process.join(timeout=5)
+        results.close()
+        results.join_thread()
+
+
+def test_failed_request_preserves_previously_committed_cache(tmp_path):
+    calls = []
+
+    def transform(value):
+        calls.append(value)
+        if value == "bad":
+            raise RuntimeError("unavailable")
+        return value.upper()
+
+    db = PayloadStore(tmp_path / "cache.db", transform)
+    db.initialize()
+    try:
+        identifier = db.create(PayloadInput(list_1=["good"], list_2=["good"]))
+        with pytest.raises(RuntimeError):
+            db.create(PayloadInput(list_1=["good"], list_2=["bad"]))
+        assert db.read(identifier) == "GOOD, GOOD"
+        db.create(PayloadInput(list_1=["good", "good"], list_2=["good", "good"]))
+        assert calls == ["good", "bad"]
+    finally:
+        db.close()
+
+
+def test_invalid_transformer_result_is_not_cached(tmp_path):
+    db = PayloadStore(tmp_path / "cache.db", lambda value: None)
+    db.initialize()
+    request = PayloadInput(list_1=["a"], list_2=["a"])
+    try:
+        with pytest.raises(TypeError, match="transformer must return a string"):
+            db.create(request)
+        assert db.read(payload_id(request)) is None
+    finally:
+        db.close()
