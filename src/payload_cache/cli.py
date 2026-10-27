@@ -106,11 +106,7 @@ def run(arguments: Arguments) -> None:
             created_response.raise_for_status()
             try:
                 created = PayloadCreated.model_validate(created_response.json())
-                if len(created.id) != 64 or any(
-                    c not in "0123456789abcdef" for c in created.id
-                ):
-                    raise ValueError("invalid payload identifier")
-            except (ValueError, ValidationError) as exc:
+            except ValueError as exc:
                 raise ServiceError(
                     "service returned an invalid create response"
                 ) from exc
@@ -118,7 +114,7 @@ def run(arguments: Arguments) -> None:
             output_response.raise_for_status()
             try:
                 output = PayloadOutput.model_validate(output_response.json())
-            except (ValueError, ValidationError) as exc:
+            except ValueError as exc:
                 raise ServiceError(
                     "service returned an invalid payload response"
                 ) from exc

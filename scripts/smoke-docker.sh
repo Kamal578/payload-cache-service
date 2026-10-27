@@ -29,13 +29,13 @@ identifier=$(docker exec "$name" python -c '
 import json, urllib.request
 body = json.dumps({"list_1": ["first string", "second string", "third string"], "list_2": ["other string", "another string", "last string"]}).encode()
 request = urllib.request.Request("http://127.0.0.1:8000/payload", data=body, headers={"Content-Type": "application/json"})
-print(json.load(urllib.request.urlopen(request))["id"])
+print(json.load(urllib.request.urlopen(request, timeout=10))["id"])
 ')
 docker rm -f "$name" >/dev/null
 start
 docker exec "$name" python -c '
 import json, sys, urllib.request
-output = json.load(urllib.request.urlopen("http://127.0.0.1:8000/payload/" + sys.argv[1]))
+output = json.load(urllib.request.urlopen("http://127.0.0.1:8000/payload/" + sys.argv[1], timeout=10))
 assert output == {"output": "FIRST STRING, OTHER STRING, SECOND STRING, ANOTHER STRING, THIRD STRING, LAST STRING"}, output
 ' "$identifier"
 docker exec "$name" cache-cli --host http://127.0.0.1:8000 --json '{"list_1":["other string"],"list_2":["first string"]}' --repeat 2

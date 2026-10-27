@@ -10,9 +10,9 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi import Path as PathParameter
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from starlette.concurrency import run_in_threadpool
 
 from payload_cache.models import PayloadCreated, PayloadInput, PayloadOutput
 from payload_cache.storage import PayloadStore, Transformer, uppercase

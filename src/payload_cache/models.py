@@ -1,6 +1,6 @@
 """API contracts shared by the service and CLI."""
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PayloadInput(BaseModel):
@@ -22,7 +22,9 @@ class PayloadInput(BaseModel):
 
 
 class PayloadCreated(BaseModel):
-    id: str
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    id: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class PayloadOutput(BaseModel):
