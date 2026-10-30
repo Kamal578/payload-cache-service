@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -32,7 +32,7 @@ def create_app(
     )
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             await run_in_threadpool(store.initialize)
             yield
